@@ -163,9 +163,14 @@ class AttendanceApp:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Get employees
+        # Get employees, sorted by last_name then department
         c = self.conn.cursor()
-        c.execute("SELECT employee_number, first_name, last_name, department FROM employees WHERE termination_date IS NULL ORDER BY last_name, first_name")
+        c.execute("""
+            SELECT employee_number, first_name, last_name, department 
+            FROM employees 
+            WHERE termination_date IS NULL 
+            ORDER BY last_name, department
+        """)
         employees = c.fetchall()
 
         # Attendance variables storage
