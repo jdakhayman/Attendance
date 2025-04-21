@@ -38,29 +38,36 @@ class AttendanceApp:
         self.root.title("Reeb Exterior Employee Attendance System")
         self.conn = sqlite3.connect("attendance.db")
         
-        # Main Frame
         self.main_frame = ttk.Frame(root, padding="10")
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # Buttons for actions
         ttk.Button(self.main_frame, text="Add Employee", command=self.add_employee).grid(row=0, column=0, pady=5)
-        ttk.Button(self.main_frame, text="Record Attendance", command=self.record_attendance).grid(row=0, column=1, pady=5)
-        ttk.Button(self.main_frame, text="Daily Report", command=self.daily_report).grid(row=0, column=2, pady=5)
-        ttk.Button(self.main_frame, text="Weekly Summary", command=self.weekly_summary).grid(row=0, column=3, pady=5)
-        ttk.Button(self.main_frame, text="Monthly Summary", command=self.monthly_summary).grid(row=0, column=4, pady=5)
-        ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=5, pady=5)
+        ttk.Button(self.main_frame, text="Edit Employee", command=self.edit_employee).grid(row=0, column=1, pady=5)
+        ttk.Button(self.main_frame, text="Record Attendance", command=self.record_attendance).grid(row=0, column=2, pady=5)
+        ttk.Button(self.main_frame, text="Daily Report", command=self.daily_report).grid(row=0, column=3, pady=5)
+        ttk.Button(self.main_frame, text="Weekly Summary", command=self.weekly_summary).grid(row=0, column=4, pady=5)
+        ttk.Button(self.main_frame, text="Monthly Summary", command=self.monthly_summary).grid(row=0, column=5, pady=5)
+        ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=6, pady=5)
+
+    def validate_date(self, date_str):
+        """Validate that a date string is in YYYY-MM-DD format and is a valid date."""
+        if not date_str:  # Allow empty string for optional fields
+            return True
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
 
     def add_employee(self):
-        # Popup window for adding employee
         win = tk.Toplevel(self.root)
         win.title("Add Employee")
-        win.geometry("300x200")  # Set a reasonable size for the window
+        win.geometry("300x250")
     
-        # Labels and Entry Fields
         ttk.Label(win, text="Employee Number").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         emp_num = ttk.Entry(win)
         emp_num.grid(row=0, column=1, padx=5, pady=5)
-        emp_num.focus()  # Set focus to Employee Number field
+        emp_num.focus()
         
         ttk.Label(win, text="First Name").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
         fname = ttk.Entry(win)
@@ -70,72 +77,126 @@ class AttendanceApp:
         lname = ttk.Entry(win)
         lname.grid(row=2, column=1, padx=5, pady=5)
         
-        # Department Dropdown
         ttk.Label(win, text="Department").grid(row=3, column=0, padx=5, pady=5, sticky=tk.W)
-        departments = ["PREP", "ACRO", "RKG", "SDL", "EPL"]  # Predefined list
-        dept = ttk.Combobox(win, values=departments, state="readonly")  # Dropdown with options
+        departments = ["PREP", "ACRO", "RKG", "SDL", "EPL"]
+        dept = ttk.Combobox(win, values=departments, state="readonly")
         dept.grid(row=3, column=1, padx=5, pady=5)
-        #dept.set("PREP")  # Default selection
 
         ttk.Label(win, text="Hire Date").grid(row=4, column=0, padx=5, pady=5, sticky=tk.W)
         hdate = ttk.Entry(win)
         hdate.grid(row=4, column=1, padx=5, pady=5)
         
+        ttk.Label(win, text="Termination Date (optional)").grid(row=5, column=0, padx=5, pady=5, sticky=tk.W)
+        tdate = ttk.Entry(win)
+        tdate.grid(row=5, column=1, padx=5, pady=5)
+        
         def save_employee():
-            # Get values from entry fields
             emp_num_val = emp_num.get().strip()
             fname_val = fname.get().strip()
             lname_val = lname.get().strip()
             dept_val = dept.get()
             hdate_val = hdate.get().strip()
+            tdate_val = tdate.get().strip() or None
 
-            # Validation
+            # Required fields validation
             if not emp_num_val or not fname_val or not lname_val or not dept_val or not hdate_val:
-                messagebox.showerror("Error", "All fields are required!")
+                messagebox.showerror("Error", "Required fields (except Termination Date) must be filled!")
                 return
             
+            # Employee number validation
             try:
-                emp_num_int = int(emp_num_val)  # Ensure employee_number is an integer
+                emp_num_int = int(emp_num_val)
             except ValueError:
                 messagebox.showerror("Error", "Employee Number must be an integer!")
                 return
             
-            # Database operation
+            # Date validation
+            if not self.validate_date(hdate_val):
+                messagebox.showerror("Error", "Hire Date must be in YYYY-MM-DD format!")
+                return
+            if tdate_val and not self.validate_date(tdate_val):
+                messagebox.showerror("Error", "Termination Date must be in YYYY-MM-DD format!")
+                return
+            
             try:
                 c = self.conn.cursor()
-                # Insert new employee with current date as hire_date
                 c.execute("""
-                    INSERT INTO employees (employee_number, first_name, last_name, department, hire_date)
-                    VALUES (?, ?, ?, ?, ?)""",
-                    (emp_num_int, fname_val, lname_val, dept_val, hdate_val))
+                    INSERT INTO employees (employee_number, first_name, last_name, department, hire_date, termination_date)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                    (emp_num_int, fname_val, lname_val, dept_val, hdate_val, tdate_val))
                 self.conn.commit()
-                
-                # Success feedback
                 messagebox.showinfo("Success", f"Employee {fname_val} {lname_val} (#{emp_num_int}) added!")
-                
-                # Clear the form
                 emp_num.delete(0, tk.END)
                 fname.delete(0, tk.END)
                 lname.delete(0, tk.END)
-                dept.delete(0, tk.END)
+                dept.set("")
                 hdate.delete(0, tk.END)
-                
-                # Optional: Close the window after saving
-                # win.destroy()
-                
+                tdate.delete(0, tk.END)
+                emp_num.focus()
             except sqlite3.IntegrityError:
-                # Handle duplicate employee_number (PRIMARY KEY violation)
                 messagebox.showerror("Error", f"Employee Number {emp_num_val} already exists!")
             except Exception as e:
-                # Catch any other unexpected errors
                 messagebox.showerror("Error", f"An error occurred: {str(e)}")
         
-        # Save Button
-        ttk.Button(win, text="Save", command=save_employee).grid(row=5, column=1, padx=5, pady=10)
-        
-        # Optional: Add a Cancel button to close the window without saving
-        ttk.Button(win, text="Cancel", command=win.destroy).grid(row=5, column=0, padx=5, pady=10)        
-        
+        ttk.Button(win, text="Save", command=save_employee).grid(row=6, column=1, padx=5, pady=10)
+        ttk.Button(win, text="Cancel", command=win.destroy).grid(row=6, column=0, padx=5, pady=10)
+
+    def edit_employee(self):
+        win = tk.Toplevel(self.root)
+        win.title("Edit Employee Termination Date")
+        win.geometry("400x200")
+
+        ttk.Label(win, text="Employee").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        c = self.conn.cursor()
+        c.execute("SELECT employee_number, first_name, last_name, department, termination_date FROM employees ORDER BY last_name, first_name")
+        employees = [(f"{row[1]} {row[2]} (#{row[0]}) - {row[3]}{' - Terminated: ' + row[4] if row[4] else ''}", row[0]) for row in c.fetchall()]
+        emp_var = tk.StringVar()
+        emp_dropdown = ttk.Combobox(win, textvariable=emp_var, values=[e[0] for e in employees], state="readonly", width=40)
+        emp_dropdown.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(win, text="Termination Date").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        tdate = ttk.Entry(win)
+        tdate.grid(row=1, column=1, padx=5, pady=5)
+
+        def load_current():
+            if emp_dropdown.get():
+                emp_num = employees[emp_dropdown.current()][1]
+                c.execute("SELECT termination_date FROM employees WHERE employee_number = ?", (emp_num,))
+                current_date = c.fetchone()[0]
+                tdate.delete(0, tk.END)
+                tdate.insert(0, current_date or "")
+
+        emp_dropdown.bind("<<ComboboxSelected>>", lambda e: load_current())
+
+        def save_termination():
+            if not emp_dropdown.get():
+                messagebox.showerror("Error", "Please select an employee!")
+                return
+            
+            emp_num = employees[emp_dropdown.current()][1]
+            tdate_val = tdate.get().strip() or None
+            
+            # Date validation
+            if tdate_val and not self.validate_date(tdate_val):
+                messagebox.showerror("Error", "Termination Date must be in YYYY-MM-DD format!")
+                return
+            
+            try:
+                c = self.conn.cursor()
+                c.execute("UPDATE employees SET termination_date = ? WHERE employee_number = ?", (tdate_val, emp_num))
+                self.conn.commit()
+                messagebox.showinfo("Success", f"Termination date updated for employee #{emp_num}")
+                load_current()
+                c.execute("SELECT employee_number, first_name, last_name, department, termination_date FROM employees ORDER BY last_name, first_name")
+                employees[:] = [(f"{row[1]} {row[2]} (#{row[0]}) - {row[3]}{' - Terminated: ' + row[4] if row[4] else ''}", row[0]) for row in c.fetchall()]
+                emp_dropdown['values'] = [e[0] for e in employees]
+            except Exception as e:
+                messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
+        ttk.Button(win, text="Save", command=save_termination).grid(row=2, column=1, padx=5, pady=10)
+        ttk.Button(win, text="Cancel", command=win.destroy).grid(row=2, column=0, padx=5, pady=10)
+      
+    # Record Attendance
     def record_attendance(self):
         win = tk.Toplevel(self.root)
         win.title("Record Attendance")
