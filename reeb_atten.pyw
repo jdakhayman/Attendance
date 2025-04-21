@@ -169,7 +169,7 @@ class AttendanceApp:
             SELECT employee_number, first_name, last_name, department 
             FROM employees 
             WHERE termination_date IS NULL 
-            ORDER BY last_name, department
+            ORDER BY department, last_name
         """)
         employees = c.fetchall()
 
