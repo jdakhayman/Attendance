@@ -10,7 +10,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
 import csv
-# Requires: pip install pyperclip
 import pyperclip
 
 def init_db():
@@ -268,7 +267,7 @@ class AttendanceApp:
                         command=lambda: toggle_all('early')).grid(row=0, column=3, padx=5, pady=5)
         ttk.Checkbutton(scrollable_frame, text="All Absent", variable=select_all_vars['absent'],
                         command=lambda: toggle_all('absent')).grid(row=0, column=4, padx=5, pady=5)
-        ttk.Checkbutton(scrollable_frame, text="All Bonus", variable=select_all_vars['bonus'],
+        ttk.Checkbutton(scrollable_frame, text="All Point", variable=select_all_vars['bonus'],
                         command=lambda: toggle_all('bonus')).grid(row=0, column=5, padx=5, pady=5)
         ttk.Label(scrollable_frame, text="Notes").grid(row=0, column=6, padx=5, pady=5)
 
@@ -396,10 +395,37 @@ class AttendanceApp:
             messagebox.showerror("Error", f"Failed to export CSV: {str(e)}")
 
     def copy_to_clipboard(self, data, headers):
-        """Copy report data as a tab-separated table for email."""
-        table = '\t'.join(headers) + '\n'
+        """Copy report data as a fixed-width table for email."""
+        # Define column widths for alignment
+        col_widths = {
+            "Number": 8,
+            "Name": 22,
+            "Dept": 8,
+            "Present": 8,
+            "Tardy": 7,
+            "Early": 7,
+            "Absent": 7,
+            "Point": 7,
+            "Notes": 30
+        } if len(headers) == 9 else {
+            "Number": 8,
+            "Name": 22,
+            "Dept": 8,
+            "Present": 8,
+            "Tardy": 7,
+            "Early": 7,
+            "Absent": 7,
+            "Point": 7
+        }
+        
+        # Format headers with extra padding
+        table = "".join(f"{header:<{col_widths[header]}} " for header in headers).rstrip() + "\n"
+        table += "".join("-" * col_widths[header] + " " for header in headers).rstrip() + "\n"
+        
+        # Format data rows with truncation
         for row in data:
-            table += '\t'.join(str(x) for x in row) + '\n'
+            table += "".join(f"{str(x)[:col_widths[headers[i]]-1]:<{col_widths[headers[i]]}} " for i, x in enumerate(row)).rstrip() + "\n"
+        
         pyperclip.copy(table)
         messagebox.showinfo("Success", "Table copied to clipboard!")
 
@@ -407,7 +433,7 @@ class AttendanceApp:
         """Generate and display a daily attendance report."""
         win = tk.Toplevel(self.root)
         win.title("Daily Report")
-        win.geometry("800x600")
+        win.geometry("900x600")
 
         date_label = ttk.Label(win, text="Select Date")
         date_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
@@ -415,12 +441,14 @@ class AttendanceApp:
         date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
         date_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Bonus", "Notes"), show="headings")
+        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Point", "Notes"), show="headings")
         tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
 
+        # Set column widths to match copied table
+        col_widths = {"Number": 80, "Name": 176, "Dept": 80, "Present": 70, "Tardy": 60, "Early": 60, "Absent": 60, "Point": 60, "Notes": 240}
         for col in tree["columns"]:
             tree.heading(col, text=col)
-            tree.column(col, width=100, anchor="center")
+            tree.column(col, width=col_widths[col], anchor="w")
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
@@ -492,12 +520,14 @@ class AttendanceApp:
         date_entry.insert(0, start_date.strftime("%Y-%m-%d"))
         date_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Bonus"), show="headings")
+        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Point"), show="headings")
         tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
 
+        # Set column widths to match copied table
+        col_widths = {"Number": 80, "Name": 176, "Dept": 80, "Present": 70, "Tardy": 60, "Early": 60, "Absent": 60, "Point": 60}
         for col in tree["columns"]:
             tree.heading(col, text=col)
-            tree.column(col, width=100, anchor="center")
+            tree.column(col, width=col_widths[col], anchor="w")
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
@@ -578,12 +608,14 @@ class AttendanceApp:
         date_entry.insert(0, current_month.strftime("%Y-%m-%d"))
         date_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Bonus"), show="headings")
+        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Point"), show="headings")
         tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
 
+        # Set column widths to match copied table
+        col_widths = {"Number": 80, "Name": 176, "Dept": 80, "Present": 70, "Tardy": 60, "Early": 60, "Absent": 60, "Point": 60}
         for col in tree["columns"]:
             tree.heading(col, text=col)
-            tree.column(col, width=100, anchor="center")
+            tree.column(col, width=col_widths[col], anchor="w")
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
