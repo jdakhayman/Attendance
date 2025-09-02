@@ -11,6 +11,7 @@ from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
 import csv
 import pyperclip
+import os
 
 def init_db():
     """Initialize the SQLite database with employees and attendance tables."""
@@ -383,14 +384,16 @@ class AttendanceApp:
         load_existing()
 
     def export_to_csv(self, data, headers, filename):
-        """Export report data to a CSV file."""
+        """Export report data to a CSV file in the user's home directory."""
         try:
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
+            home_dir = os.path.expanduser("~")
+            file_path = os.path.join(home_dir, filename)
+            with open(file_path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
                 for row in data:
                     writer.writerow(row)
-            messagebox.showinfo("Success", f"Report exported to {filename}")
+            messagebox.showinfo("Success", f"Report exported to {file_path}")
         except IOError as e:
             messagebox.showerror("Error", f"Failed to export CSV: {str(e)}")
 
