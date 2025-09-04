@@ -1,11 +1,19 @@
+"""
+Employee Attendance System for Reeb Exterior.
+
+This module provides a GUI application to manage employee records and attendance,
+with functionality to generate daily reports, and export them to CSV or copy as tables for email.
+"""
 import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 import csv
+import pyperclip
+import os
 
-# Database Setup
 def init_db():
+    """Initialize the SQLite database with employees and attendance tables."""
     conn = sqlite3.connect("attendance.db")
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
@@ -31,23 +39,21 @@ def init_db():
     conn.commit()
     conn.close()
 
-# GUI Class
 class AttendanceApp:
-    def __init__(self, root):
-        self.root = root
+    """Main application class for managing employee attendance."""
+    def __init__(self, tk_root):
+        self.root = tk_root
         self.root.title("Reeb Exterior Employee Attendance System")
         self.conn = sqlite3.connect("attendance.db")
         
-        self.main_frame = ttk.Frame(root, padding="10")
+        self.main_frame = ttk.Frame(tk_root, padding="10")
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         ttk.Button(self.main_frame, text="Add Employee", command=self.add_employee).grid(row=0, column=0, pady=5)
         ttk.Button(self.main_frame, text="Edit Employee", command=self.edit_employee).grid(row=0, column=1, pady=5)
         ttk.Button(self.main_frame, text="Record Attendance", command=self.record_attendance).grid(row=0, column=2, pady=5)
         ttk.Button(self.main_frame, text="Daily Report", command=self.daily_report).grid(row=0, column=3, pady=5)
-        ttk.Button(self.main_frame, text="Weekly Summary", command=self.weekly_summary).grid(row=0, column=4, pady=5)
-        ttk.Button(self.main_frame, text="Monthly Summary", command=self.monthly_summary).grid(row=0, column=5, pady=5)
-        ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=6, pady=5)
+        ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=4, pady=5)
 
     def validate_date(self, date_str):
         """Validate that a date string is in YYYY-MM-DD format and is a valid date."""
@@ -60,6 +66,7 @@ class AttendanceApp:
             return False
 
     def add_employee(self):
+        """Open a window to add a new employee to the database."""
         win = tk.Toplevel(self.root)
         win.title("Add Employee")
         win.geometry("300x250")
@@ -135,13 +142,14 @@ class AttendanceApp:
                 emp_num.focus()
             except sqlite3.IntegrityError:
                 messagebox.showerror("Error", f"Employee Number {emp_num_val} already exists!")
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            except sqlite3.Error as e:
+                messagebox.showerror("Error", f"Database error: {str(e)}")
         
         ttk.Button(win, text="Save", command=save_employee).grid(row=6, column=1, padx=5, pady=10)
         ttk.Button(win, text="Cancel", command=win.destroy).grid(row=6, column=0, padx=5, pady=10)
 
     def edit_employee(self):
+        """Open a window to edit an employee's termination date."""
         win = tk.Toplevel(self.root)
         win.title("Edit Employee Termination Date")
         win.geometry("400x200")
@@ -190,14 +198,14 @@ class AttendanceApp:
                 c.execute("SELECT employee_number, first_name, last_name, department, termination_date FROM employees ORDER BY last_name, first_name")
                 employees[:] = [(f"{row[1]} {row[2]} (#{row[0]}) - {row[3]}{' - Terminated: ' + row[4] if row[4] else ''}", row[0]) for row in c.fetchall()]
                 emp_dropdown['values'] = [e[0] for e in employees]
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            except sqlite3.Error as e:
+                messagebox.showerror("Error", f"Database error: {str(e)}")
 
         ttk.Button(win, text="Save", command=save_termination).grid(row=2, column=1, padx=5, pady=10)
         ttk.Button(win, text="Cancel", command=win.destroy).grid(row=2, column=0, padx=5, pady=10)
-      
-    # Record Attendance
+
     def record_attendance(self):
+        """Open a window to record attendance for employees."""
         win = tk.Toplevel(self.root)
         win.title("Record Attendance")
         win.geometry("800x600")
@@ -250,15 +258,15 @@ class AttendanceApp:
         # Header with Select All
         ttk.Label(scrollable_frame, text="Employee").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         ttk.Checkbutton(scrollable_frame, text="All Present", variable=select_all_vars['present'], 
-                    command=lambda: toggle_all('present')).grid(row=0, column=1, padx=5, pady=5)
+                        command=lambda: toggle_all('present')).grid(row=0, column=1, padx=5, pady=5)
         ttk.Checkbutton(scrollable_frame, text="All Tardy", variable=select_all_vars['tardy'],
-                    command=lambda: toggle_all('tardy')).grid(row=0, column=2, padx=5, pady=5)
+                        command=lambda: toggle_all('tardy')).grid(row=0, column=2, padx=5, pady=5)
         ttk.Checkbutton(scrollable_frame, text="All Early Out", variable=select_all_vars['early'],
-                    command=lambda: toggle_all('early')).grid(row=0, column=3, padx=5, pady=5)
+                        command=lambda: toggle_all('early')).grid(row=0, column=3, padx=5, pady=5)
         ttk.Checkbutton(scrollable_frame, text="All Absent", variable=select_all_vars['absent'],
-                    command=lambda: toggle_all('absent')).grid(row=0, column=4, padx=5, pady=5)
-        ttk.Checkbutton(scrollable_frame, text="All Bonus", variable=select_all_vars['bonus'],
-                    command=lambda: toggle_all('bonus')).grid(row=0, column=5, padx=5, pady=5)
+                        command=lambda: toggle_all('absent')).grid(row=0, column=4, padx=5, pady=5)
+        ttk.Checkbutton(scrollable_frame, text="All Point", variable=select_all_vars['bonus'],
+                        command=lambda: toggle_all('bonus')).grid(row=0, column=5, padx=5, pady=5)
         ttk.Label(scrollable_frame, text="Notes").grid(row=0, column=6, padx=5, pady=5)
 
         # Create employee rows
@@ -291,59 +299,63 @@ class AttendanceApp:
 
         def toggle_all(category):
             state = select_all_vars[category].get()
-            for emp_num in attendance_vars:
-                attendance_vars[emp_num][category].set(state)
+            for _, vars_dict in attendance_vars.items():
+                vars_dict[category].set(state)
 
         def load_existing():
             date = date_entry.get()
             c.execute("SELECT employee_number, present, tardy, early_out, absent, bonus_points, notes FROM attendance WHERE date = ?", (date,))
             records = {row[0]: row[1:] for row in c.fetchall()}
             
-            for emp_num in attendance_vars:
+            for emp_num, vars_dict in attendance_vars.items():
                 if emp_num in records:
                     record = records[emp_num]
-                    attendance_vars[emp_num]['present'].set(record[0])
-                    attendance_vars[emp_num]['tardy'].set(record[1])
-                    attendance_vars[emp_num]['early'].set(record[2])
-                    attendance_vars[emp_num]['absent'].set(record[3])
-                    attendance_vars[emp_num]['bonus'].set(record[4])
+                    vars_dict['present'].set(record[0])
+                    vars_dict['tardy'].set(record[1])
+                    vars_dict['early'].set(record[2])
+                    vars_dict['absent'].set(record[3])
+                    vars_dict['bonus'].set(record[4])
                     notes_entries[emp_num].delete(0, tk.END)
                     notes_entries[emp_num].insert(0, record[5] or "")
                 else:
                     # Clear if no record exists
-                    for var in attendance_vars[emp_num].values():
+                    for var in vars_dict.values():
                         var.set(False)
                     notes_entries[emp_num].delete(0, tk.END)
             
             # Update select all checkboxes based on current state
-            for category in select_all_vars:
-                all_checked = all(attendance_vars[emp_num][category].get() for emp_num in attendance_vars)
-                select_all_vars[category].set(all_checked)
+            for category, var in select_all_vars.items():
+                all_checked = all(vars_dict[category].get() for vars_dict in attendance_vars.values())
+                var.set(all_checked)
 
         def save_attendance():
             date = date_entry.get()
+            if not self.validate_date(date):
+                messagebox.showerror("Error", "Date must be in YYYY-MM-DD format!")
+                return
+                
             c = self.conn.cursor()
             try:
-                for emp_num in attendance_vars:
+                for emp_num, vars_dict in attendance_vars.items():
                     c.execute("""
                         INSERT OR REPLACE INTO attendance 
                         (employee_number, date, present, tardy, early_out, absent, bonus_points, notes)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                         (emp_num, date,
-                        attendance_vars[emp_num]['present'].get(),
-                        attendance_vars[emp_num]['tardy'].get(),
-                        attendance_vars[emp_num]['early'].get(),
-                        attendance_vars[emp_num]['absent'].get(),
-                        attendance_vars[emp_num]['bonus'].get(),
-                        notes_entries[emp_num].get()))
+                         vars_dict['present'].get(),
+                         vars_dict['tardy'].get(),
+                         vars_dict['early'].get(),
+                         vars_dict['absent'].get(),
+                         vars_dict['bonus'].get(),
+                         notes_entries[emp_num].get()))
                 self.conn.commit()
                 status_label.config(text=f"Attendance saved for {date}")
-            except Exception as e:
-                status_label.config(text=f"Error: {str(e)}")
+            except sqlite3.Error as e:
+                status_label.config(text=f"Database error: {str(e)}")
 
         def clear_all():
-            for emp_num in attendance_vars:
-                for var in attendance_vars[emp_num].values():
+            for emp_num, vars_dict in attendance_vars.items():
+                for var in vars_dict.values():
                     var.set(False)
                 notes_entries[emp_num].delete(0, tk.END)
             for var in select_all_vars.values():
@@ -367,151 +379,147 @@ class AttendanceApp:
 
         # Initial load
         load_existing()
+
+    def export_to_csv(self, data, headers, filename):
+        """Export report data to a CSV file in the user's home directory."""
+        try:
+            home_dir = os.path.expanduser("~")
+            file_path = os.path.join(home_dir, filename)
+            with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                for row in data:
+                    writer.writerow(row)
+            messagebox.showinfo("Success", f"Report exported to {file_path}")
+        except IOError as e:
+            messagebox.showerror("Error", f"Failed to export CSV: {str(e)}")
+
+    def copy_to_clipboard(self, data, headers):
+        """Copy report data as a fixed-width table for email."""
+        # Define column widths for alignment
+        col_widths = {
+            "Number": 8,
+            "Name": 22,
+            "Dept": 8,
+            "Present": 8,
+            "Tardy": 7,
+            "Early": 7,
+            "Absent": 7,
+            "Point": 7,
+            "Notes": 30
+        }
         
+        # Format headers with extra padding
+        table = "".join(f"{header:<{col_widths[header]}} " for header in headers).rstrip() + "\n"
+        table += "".join("-" * col_widths[header] + " " for header in headers).rstrip() + "\n"
+        
+        # Format data rows with truncation
+        for row in data:
+            table += "".join(f"{str(x)[:col_widths[headers[i]]-1]:<{col_widths[headers[i]]}} " for i, x in enumerate(row)).rstrip() + "\n"
+        
+        pyperclip.copy(table)
+        messagebox.showinfo("Success", "Table copied to clipboard!")
+
     def daily_report(self):
-            win = tk.Toplevel(self.root)
-            win.title("Daily Report")
-            win.geometry("600x400")
+        """Generate and display a daily attendance report."""
+        win = tk.Toplevel(self.root)
+        win.title("Daily Report")
+        win.geometry("900x600")
 
-            date_label = ttk.Label(win, text="Select Date")
-            date_label.grid(row=0, column=0, padx=5, pady=5)
-            date_entry = ttk.Entry(win)
-            date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-            date_entry.grid(row=0, column=1, padx=5, pady=5)
+        date_label = ttk.Label(win, text="Select Date")
+        date_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        date_entry = ttk.Entry(win)
+        date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        date_entry.grid(row=0, column=1, padx=5, pady=5)
 
-            tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Bonus", "Notes"), show="headings")
-            tree.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
+        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Point", "Notes"), show="headings")
+        tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
 
-            for col in tree["columns"]:
-                tree.heading(col, text=col)
-                tree.column(col, width=70)
+        # Set column widths to match copied table
+        col_widths = {"Number": 80, "Name": 176, "Dept": 80, "Present": 70, "Tardy": 60, "Early": 60, "Absent": 60, "Point": 60, "Notes": 240}
+        for col in tree["columns"]:
+            tree.heading(col, text=col)
+            tree.column(col, width=col_widths[col], anchor="w")
 
-            def update_report():
-             for item in tree.get_children():
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
+        scrollbar.grid(row=1, column=4, sticky="ns")
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        def update_report():
+            for item in tree.get_children():
                 tree.delete(item)
             
             date = date_entry.get()
+            if not self.validate_date(date):
+                messagebox.showerror("Error", "Date must be in YYYY-MM-DD format!")
+                return
+
             c = self.conn.cursor()
             c.execute("""
                 SELECT e.employee_number, e.first_name, e.last_name, e.department, 
                        a.present, a.tardy, a.early_out, a.absent, a.bonus_points, a.notes
                 FROM employees e
                 LEFT JOIN attendance a ON e.employee_number = a.employee_number AND a.date = ?
-                WHERE e.termination_date IS NULL""", (date,))
-            
-            for row in c.fetchall():
-                tree.insert("", "end", values=(row[0], f"{row[1]} {row[2]}", row[3], *row[4:]))
-
-            ttk.Button(win, text="Generate Report", command=update_report).grid(row=2, column=1, padx=5, pady=5)
-            update_report()  # Initial load
-
-    def weekly_summary(self):
-        win = tk.Toplevel(self.root)
-        win.title("Weekly Summary")
-        win.geometry("600x400")
-
-        start_date = datetime.now() - timedelta(days=datetime.now().weekday())
-        ttk.Label(win, text="Week Start Date").grid(row=0, column=0, padx=5, pady=5)
-        date_entry = ttk.Entry(win)
-        date_entry.insert(0, start_date.strftime("%Y-%m-%d"))
-        date_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Bonus"), show="headings")
-        tree.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
-
-        for col in tree["columns"]:
-            tree.heading(col, text=col)
-            tree.column(col, width=70)
-
-        def update_summary():
-            for item in tree.get_children():
-                tree.delete(item)
-            
-            start = datetime.strptime(date_entry.get(), "%Y-%m-%d")
-            end = start + timedelta(days=6)
-            
-            c = self.conn.cursor()
-            c.execute("""
-                SELECT e.employee_number, e.first_name, e.last_name, e.department,
-                       SUM(CASE WHEN a.present THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.tardy THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.early_out THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.absent THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.bonus_points THEN 1 ELSE 0 END)
-                FROM employees e
-                LEFT JOIN attendance a ON e.employee_number = a.employee_number 
-                AND a.date BETWEEN ? AND ?
                 WHERE e.termination_date IS NULL
-                GROUP BY e.employee_number, e.first_name, e.last_name, e.department""",
-                (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
+                ORDER BY e.department, e.last_name""", (date,))
             
+            data = []
             for row in c.fetchall():
-                tree.insert("", "end", values=row)
+                display_row = (
+                    row[0], 
+                    f"{row[1]} {row[2]}", 
+                    row[3],
+                    "Yes" if row[4] else "No",
+                    "Yes" if row[5] else "No",
+                    "Yes" if row[6] else "No",
+                    "Yes" if row[7] else "No",
+                    "Yes" if row[8] else "No",
+                    row[9] or ""
+                )
+                tree.insert("", "end", values=display_row)
+                data.append(display_row)
 
-        ttk.Button(win, text="Generate Summary", command=update_summary).grid(row=2, column=1, padx=5, pady=5)
-        update_summary()
+            # Update export buttons
+            export_csv_btn.config(command=lambda: self.export_to_csv(
+                data, tree["columns"], f"daily_report_{date}.csv"))
+            copy_btn.config(command=lambda: self.copy_to_clipboard(data, tree["columns"]))
 
-    def monthly_summary(self):
-        win = tk.Toplevel(self.root)
-        win.title("Monthly Summary")
-        win.geometry("600x400")
+        # Buttons
+        ttk.Button(win, text="Generate Report", command=update_report).grid(row=2, column=0, padx=5, pady=5)
+        export_csv_btn = ttk.Button(win, text="Export to CSV", command=lambda: None)
+        export_csv_btn.grid(row=2, column=1, padx=5, pady=5)
+        copy_btn = ttk.Button(win, text="Copy Table", command=lambda: None)
+        copy_btn.grid(row=2, column=2, padx=5, pady=5)
+        ttk.Button(win, text="Close", command=win.destroy).grid(row=2, column=3, padx=5, pady=5)
 
-        current_month = datetime.now().replace(day=1)
-        ttk.Label(win, text="Month Start Date").grid(row=0, column=0, padx=5, pady=5)
-        date_entry = ttk.Entry(win)
-        date_entry.insert(0, current_month.strftime("%Y-%m-%d"))
-        date_entry.grid(row=0, column=1, padx=5, pady=5)
+        # Configure window resizing
+        win.grid_rowconfigure(1, weight=1)
+        win.grid_columnconfigure(0, weight=1)
 
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Bonus"), show="headings")
-        tree.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
-
-        for col in tree["columns"]:
-            tree.heading(col, text=col)
-            tree.column(col, width=70)
-
-        def update_summary():
-            for item in tree.get_children():
-                tree.delete(item)
-            
-            start = datetime.strptime(date_entry.get(), "%Y-%m-%d")
-            end = (start.replace(month=start.month+1, day=1) - timedelta(days=1)) if start.month < 12 else start.replace(year=start.year+1, month=1, day=31)
-            
-            c = self.conn.cursor()
-            c.execute("""
-                SELECT e.employee_number, e.first_name, e.last_name, e.department,
-                       SUM(CASE WHEN a.present THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.tardy THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.early_out THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.absent THEN 1 ELSE 0 END),
-                       SUM(CASE WHEN a.bonus_points THEN 1 ELSE 0 END)
-                FROM employees e
-                LEFT JOIN attendance a ON e.employee_number = a.employee_number 
-                AND a.date BETWEEN ? AND ?
-                WHERE e.termination_date IS NULL
-                GROUP BY e.employee_number, e.first_name, e.last_name, e.department""",
-                (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
-            
-            for row in c.fetchall():
-                tree.insert("", "end", values=row)
-
-        ttk.Button(win, text="Generate Summary", command=update_summary).grid(row=2, column=1, padx=5, pady=5)
-        update_summary()
+        update_report()
 
     def import_names(self):
-        # Import from CSV
-        with open("employees.csv", "r") as file:
-            reader = csv.DictReader(file)
-            c = self.conn.cursor()
-            for row in reader:
-                c.execute("INSERT INTO employees (employee_number, first_name, last_name, department, hire_date, termination_date) VALUES (?, ?, ?, ?, ?, ?)",
-                (row["employee_number"], row["first_name"], row["last_name"], row["department"], row["hire_date"], row["termination_date"]))
-            self.conn.commit()
-        messagebox.showinfo("Success", "Names imported!")
+        """Import employee data from a CSV file."""
+        try:
+            with open("employees.csv", "r", encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                c = self.conn.cursor()
+                for row in reader:
+                    c.execute("""
+                        INSERT OR IGNORE INTO employees 
+                        (employee_number, first_name, last_name, department, hire_date, termination_date) 
+                        VALUES (?, ?, ?, ?, ?, ?)""",
+                        (row["employee_number"], row["first_name"], row["last_name"], 
+                         row["department"], row["hire_date"], row.get("termination_date")))
+                self.conn.commit()
+                messagebox.showinfo("Success", "Names imported successfully!")
+        except (IOError, sqlite3.Error) as e:
+            messagebox.showerror("Error", f"Failed to import names: {str(e)}")
 
     def __del__(self):
         self.conn.close()
 
-# Run the app
 if __name__ == "__main__":
     init_db()
     root = tk.Tk()
