@@ -2,13 +2,12 @@
 Employee Attendance System for Reeb Exterior.
 
 This module provides a GUI application to manage employee records and attendance,
-with functionality to generate daily, weekly, and monthly reports, and export them
-to CSV or copy as tables for email.
+with functionality to generate daily reports, and export them to CSV or copy as tables for email.
 """
 import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime, timedelta
+from datetime import datetime
 import csv
 import pyperclip
 import os
@@ -54,9 +53,7 @@ class AttendanceApp:
         ttk.Button(self.main_frame, text="Edit Employee", command=self.edit_employee).grid(row=0, column=1, pady=5)
         ttk.Button(self.main_frame, text="Record Attendance", command=self.record_attendance).grid(row=0, column=2, pady=5)
         ttk.Button(self.main_frame, text="Daily Report", command=self.daily_report).grid(row=0, column=3, pady=5)
-        ttk.Button(self.main_frame, text="Weekly Summary", command=self.weekly_summary).grid(row=0, column=4, pady=5)
-        ttk.Button(self.main_frame, text="Monthly Summary", command=self.monthly_summary).grid(row=0, column=5, pady=5)
-        ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=6, pady=5)
+        ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=4, pady=5)
 
     def validate_date(self, date_str):
         """Validate that a date string is in YYYY-MM-DD format and is a valid date."""
@@ -410,15 +407,6 @@ class AttendanceApp:
             "Absent": 7,
             "Point": 7,
             "Notes": 30
-        } if len(headers) == 9 else {
-            "Number": 8,
-            "Name": 22,
-            "Dept": 8,
-            "Present": 8,
-            "Tardy": 7,
-            "Early": 7,
-            "Absent": 7,
-            "Point": 7
         }
         
         # Format headers with extra padding
@@ -510,183 +498,6 @@ class AttendanceApp:
         win.grid_columnconfigure(0, weight=1)
 
         update_report()
-
-    def weekly_summary(self):
-        """Generate and display a weekly attendance summary."""
-        win = tk.Toplevel(self.root)
-        win.title("Weekly Summary")
-        win.geometry("800x600")
-
-        start_date = datetime.now() - timedelta(days=datetime.now().weekday())
-        ttk.Label(win, text="Week Start Date").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
-        date_entry = ttk.Entry(win)
-        date_entry.insert(0, start_date.strftime("%Y-%m-%d"))
-        date_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Point"), show="headings")
-        tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
-
-        # Set column widths to match copied table
-        col_widths = {"Number": 80, "Name": 176, "Dept": 80, "Present": 70, "Tardy": 60, "Early": 60, "Absent": 60, "Point": 60}
-        for col in tree["columns"]:
-            tree.heading(col, text=col)
-            tree.column(col, width=col_widths[col], anchor="w")
-
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
-        scrollbar.grid(row=1, column=4, sticky="ns")
-        tree.configure(yscrollcommand=scrollbar.set)
-
-        def update_summary():
-            for item in tree.get_children():
-                tree.delete(item)
-            
-            try:
-                start = datetime.strptime(date_entry.get(), "%Y-%m-%d")
-            except ValueError:
-                messagebox.showerror("Error", "Date must be in YYYY-MM-DD format!")
-                return
-                
-            end = start + timedelta(days=6)
-            
-            c = self.conn.cursor()
-            c.execute("""
-                SELECT e.employee_number, e.first_name, e.last_name, e.department,
-                       SUM(CASE WHEN a.present THEN 1 ELSE 0 END) as present_count,
-                       SUM(CASE WHEN a.tardy THEN 1 ELSE 0 END) as tardy_count,
-                       SUM(CASE WHEN a.early_out THEN 1 ELSE 0 END) as early_count,
-                       SUM(CASE WHEN a.absent THEN 1 ELSE 0 END) as absent_count,
-                       SUM(CASE WHEN a.bonus_points THEN 1 ELSE 0 END) as bonus_count
-                FROM employees e
-                LEFT JOIN attendance a ON e.employee_number = a.employee_number 
-                AND a.date BETWEEN ? AND ?
-                WHERE e.termination_date IS NULL
-                GROUP BY e.employee_number, e.first_name, e.last_name, e.department
-                ORDER BY e.department, e.last_name""",
-                (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
-            
-            data = []
-            for row in c.fetchall():
-                display_row = (
-                    row[0],
-                    f"{row[1]} {row[2]}",
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6],
-                    row[7],
-                    row[8]
-                )
-                tree.insert("", "end", values=display_row)
-                data.append(display_row)
-
-            # Update export buttons
-            export_csv_btn.config(command=lambda: self.export_to_csv(
-                data, tree["columns"], f"weekly_summary_{start.strftime('%Y-%m-%d')}.csv"))
-            copy_btn.config(command=lambda: self.copy_to_clipboard(data, tree["columns"]))
-
-        # Buttons
-        ttk.Button(win, text="Generate Summary", command=update_summary).grid(row=2, column=0, padx=5, pady=5)
-        export_csv_btn = ttk.Button(win, text="Export to CSV", command=lambda: None)
-        export_csv_btn.grid(row=2, column=1, padx=5, pady=5)
-        copy_btn = ttk.Button(win, text="Copy Table", command=lambda: None)
-        copy_btn.grid(row=2, column=2, padx=5, pady=5)
-        ttk.Button(win, text="Close", command=win.destroy).grid(row=2, column=3, padx=5, pady=5)
-
-        # Configure window resizing
-        win.grid_rowconfigure(1, weight=1)
-        win.grid_columnconfigure(0, weight=1)
-
-        update_summary()
-
-    def monthly_summary(self):
-        """Generate and display a monthly attendance summary."""
-        win = tk.Toplevel(self.root)
-        win.title("Monthly Summary")
-        win.geometry("800x600")
-
-        current_month = datetime.now().replace(day=1)
-        ttk.Label(win, text="Month Start Date").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
-        date_entry = ttk.Entry(win)
-        date_entry.insert(0, current_month.strftime("%Y-%m-%d"))
-        date_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        tree = ttk.Treeview(win, columns=("Number", "Name", "Dept", "Present", "Tardy", "Early", "Absent", "Point"), show="headings")
-        tree.grid(row=1, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
-
-        # Set column widths to match copied table
-        col_widths = {"Number": 80, "Name": 176, "Dept": 80, "Present": 70, "Tardy": 60, "Early": 60, "Absent": 60, "Point": 60}
-        for col in tree["columns"]:
-            tree.heading(col, text=col)
-            tree.column(col, width=col_widths[col], anchor="w")
-
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(win, orient="vertical", command=tree.yview)
-        scrollbar.grid(row=1, column=4, sticky="ns")
-        tree.configure(yscrollcommand=scrollbar.set)
-
-        def update_summary():
-            for item in tree.get_children():
-                tree.delete(item)
-            
-            try:
-                start = datetime.strptime(date_entry.get(), "%Y-%m-%d")
-            except ValueError:
-                messagebox.showerror("Error", "Date must be in YYYY-MM-DD format!")
-                return
-                
-            end = (start.replace(month=start.month+1, day=1) - timedelta(days=1)) \
-                if start.month < 12 else start.replace(year=start.year+1, month=1, day=31)
-            
-            c = self.conn.cursor()
-            c.execute("""
-                SELECT e.employee_number, e.first_name, e.last_name, e.department,
-                       SUM(CASE WHEN a.present THEN 1 ELSE 0 END) as present_count,
-                       SUM(CASE WHEN a.tardy THEN 1 ELSE 0 END) as tardy_count,
-                       SUM(CASE WHEN a.early_out THEN 1 ELSE 0 END) as early_count,
-                       SUM(CASE WHEN a.absent THEN 1 ELSE 0 END) as absent_count,
-                       SUM(CASE WHEN a.bonus_points THEN 1 ELSE 0 END) as bonus_count
-                FROM employees e
-                LEFT JOIN attendance a ON e.employee_number = a.employee_number 
-                AND a.date BETWEEN ? AND ?
-                WHERE e.termination_date IS NULL
-                GROUP BY e.employee_number, e.first_name, e.last_name, e.department
-                ORDER BY e.department, e.last_name""",
-                (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")))
-            
-            data = []
-            for row in c.fetchall():
-                display_row = (
-                    row[0],
-                    f"{row[1]} {row[2]}",
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6],
-                    row[7],
-                    row[8]
-                )
-                tree.insert("", "end", values=display_row)
-                data.append(display_row)
-
-            # Update export buttons
-            export_csv_btn.config(command=lambda: self.export_to_csv(
-                data, tree["columns"], f"monthly_summary_{start.strftime('%Y-%m-%d')}.csv"))
-            copy_btn.config(command=lambda: self.copy_to_clipboard(data, tree["columns"]))
-
-        # Buttons
-        ttk.Button(win, text="Generate Summary", command=update_summary).grid(row=2, column=0, padx=5, pady=5)
-        export_csv_btn = ttk.Button(win, text="Export to CSV", command=lambda: None)
-        export_csv_btn.grid(row=2, column=1, padx=5, pady=5)
-        copy_btn = ttk.Button(win, text="Copy Table", command=lambda: None)
-        copy_btn.grid(row=2, column=2, padx=5, pady=5)
-        ttk.Button(win, text="Close", command=win.destroy).grid(row=2, column=3, padx=5, pady=5)
-
-        # Configure window resizing
-        win.grid_rowconfigure(1, weight=1)
-        win.grid_columnconfigure(0, weight=1)
-
-        update_summary()
 
     def import_names(self):
         """Import employee data from a CSV file."""
