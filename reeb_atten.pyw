@@ -1,3 +1,4 @@
+
 """
 Employee Attendance System for Reeb Exterior.
 
@@ -54,6 +55,7 @@ class AttendanceApp:
         ttk.Button(self.main_frame, text="Record Attendance", command=self.record_attendance).grid(row=0, column=2, pady=5)
         ttk.Button(self.main_frame, text="Daily Report", command=self.daily_report).grid(row=0, column=3, pady=5)
         ttk.Button(self.main_frame, text="Import Names", command=self.import_names).grid(row=0, column=4, pady=5)
+        ttk.Button(self.main_frame, text="Employee Report", command=self.employee_report).grid(row=0, column=5, pady=5)
 
     def validate_date(self, date_str):
         """Validate that a date string is in YYYY-MM-DD format and is a valid date."""
@@ -419,6 +421,177 @@ class AttendanceApp:
         
         pyperclip.copy(table)
         messagebox.showinfo("Success", "Table copied to clipboard!")
+
+    def copy_to_clipboard_employee(self, data, headers):
+        """Copy employee report as nicely formatted table for email."""
+        widths = {"Date": 12, "Number": 10, "Name": 25, "Point": 8, "Notes": 40}
+        lines = []
+        # Header
+        lines.append("".join(f"{h:<{widths.get(h, 20)}} " for h in headers).rstrip())
+        # Separator
+        lines.append("".join("-" * widths.get(h, 20) + " " for h in headers).rstrip())
+        # Data rows
+        for row in data:
+            line = ""
+            for i, cell in enumerate(row):
+                w = widths.get(headers[i], 20)
+                line += f"{str(cell)[:w-1]:<{w}} "
+            lines.append(line.rstrip())
+        result = "\n".join(lines)
+        pyperclip.copy(result)
+        messagebox.showinfo("Copied!", "Report copied to clipboard – paste into email!")
+
+    def employee_report(self):
+        """Generate and display an employee-specific attendance report for a date range."""
+        win = tk.Toplevel(self.root)
+        win.title("Employee Report - Points & Notes")
+        win.geometry("900x700")
+        win.minsize(800, 600)
+
+        # === Top Frame for Controls ===
+        control_frame = ttk.Frame(win)
+        control_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+        control_frame.columnconfigure(1, weight=1)
+        control_frame.columnconfigure(3, weight=1)
+
+    def employee_report(self):
+        """Generate and display an employee-specific attendance report for a date range."""
+        win = tk.Toplevel(self.root)
+        win.title("Employee Report - Bonus Points & Notes")
+        win.geometry("950x700")
+
+        # === Controls Frame ===
+        ctrl_frame = ttk.Frame(win, padding="10")
+        ctrl_frame.grid(row=0, column=0, sticky="ew")
+        ctrl_frame.columnconfigure(1, weight=1)
+        ctrl_frame.columnconfigure(3, weight=1)
+
+        ttk.Label(ctrl_frame, text="Employee:").grid(row=0, column=0, sticky="w", padx=(0,5))
+        c = self.conn.cursor()
+        c.execute("SELECT employee_number, first_name, last_name FROM employees ORDER BY last_name, first_name")
+        rows = c.fetchall()
+        if not rows:
+            messagebox.showinfo("No Data", "No employees in database.")
+            win.destroy()
+            return
+
+        employees = [(f"{r[1]} {r[2]} (#{r[0]})", r[0]) for r in rows]
+        emp_combo = ttk.Combobox(ctrl_frame, values=[e[0] for e in employees], state="readonly", width=40)
+        emp_combo.grid(row=0, column=1, sticky="w")
+
+        ttk.Label(ctrl_frame, text="From:").grid(row=0, column=2, sticky="e", padx=(20,5))
+        from_entry = ttk.Entry(ctrl_frame, width=12)
+        from_entry.grid(row=0, column=3, sticky="w")
+        ttk.Label(ctrl_frame, text="To:").grid(row=0, column=4, sticky="e", padx=(20,5))
+        to_entry = ttk.Entry(ctrl_frame, width=12)
+        to_entry.grid(row=0, column=5, sticky="w")
+
+        # Default: this year to today
+        today = datetime.now().strftime("%Y-%m-%d")
+        year_start = datetime.now().strftime("%Y-01-01")
+        from_entry.insert(0, year_start)
+        to_entry.insert(0, today)
+
+        # === Treeview ===
+        tree_frame = ttk.Frame(win)
+        tree_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0,10))
+        tree_frame.rowconfigure(0, weight=1)
+        tree_frame.columnconfigure(0, weight=1)
+
+        tree = ttk.Treeview(tree_frame, columns=("Date", "Number", "Name", "Point", "Notes"), show="headings")
+        tree.grid(row=0, column=0, sticky="nsew")
+
+        tree.heading("Date", text="Date")
+        tree.heading("Number", text="Number")
+        tree.heading("Name", text="Name")
+        tree.heading("Point", text="Point")
+        tree.heading("Notes", text="Notes")
+
+        tree.column("Date", width=100, anchor="center")
+        tree.column("Number", width=80, anchor="center")
+        tree.column("Name", width=200, anchor="w")
+        tree.column("Point", width=70, anchor="center")
+        tree.column("Notes", width=350, anchor="w")
+
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
+        vsb.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=vsb.set)
+
+        # === Buttons ===
+        btn_frame = ttk.Frame(win, padding="10")
+        btn_frame.grid(row=2, column=0, sticky="ew")
+
+        status_label = ttk.Label(btn_frame, text="", foreground="blue")
+        status_label.grid(row=0, column=0, columnspan=4, sticky="w")
+
+        def generate_report():
+            if not emp_combo.get():
+                messagebox.showerror("Error", "Please select an employee!")
+                return
+
+            from_date = from_entry.get().strip()
+            to_date = to_entry.get().strip()
+
+            if not from_date or not to_date:
+                messagebox.showerror("Error", "Please enter both dates!")
+                return
+            if not self.validate_date(from_date) or not self.validate_date(to_date):
+                messagebox.showerror("Error", "Invalid date format! Use YYYY-MM-DD")
+                return
+            if from_date > to_date:
+                messagebox.showerror("Error", "From date cannot be after To date!")
+                return
+
+            emp_num = employees[emp_combo.current()][1]
+
+            # Clear table
+            for item in tree.get_children():
+                tree.delete(item)
+
+            c = self.conn.cursor()
+            c.execute("""
+                SELECT a.date, e.employee_number, e.first_name, e.last_name, 
+                       a.bonus_points, a.notes
+                FROM attendance a
+                JOIN employees e ON a.employee_number = e.employee_number
+                WHERE a.employee_number = ? AND a.date BETWEEN ? AND ?
+                ORDER BY a.date DESC
+            """, (emp_num, from_date, to_date))
+
+            data = []
+            for row in c.fetchall():
+                display_row = (
+                    row[0],
+                    row[1],
+                    f"{row[2]} {row[3]}",
+                    "Yes" if row[4] else "No",
+                    row[5] or ""
+                )
+                tree.insert("", "end", values=display_row)
+                data.append(display_row)
+
+            count = len(data)
+            status_label.config(text=f"{count} record(s) found.")
+
+            # === NOW UPDATE THE BUTTONS WITH CURRENT DATA ===
+            export_btn.config(command=lambda: self.export_to_csv(data, tree["columns"],
+                                    f"Employee_{emp_num}_{from_date}_to_{to_date}.csv"))
+            copy_btn.config(command=lambda: self.copy_to_clipboard_employee(data, tree["columns"]))
+
+        # Buttons
+        ttk.Button(btn_frame, text="Generate Report", command=generate_report).grid(row=0, column=4, padx=5)
+        export_btn = ttk.Button(btn_frame, text="Export to CSV")
+        export_btn.grid(row=0, column=5, padx=5)
+        copy_btn = ttk.Button(btn_frame, text="Copy Table to Clipboard")
+        copy_btn.grid(row=0, column=6, padx=5)
+        ttk.Button(btn_frame, text="Close", command=win.destroy).grid(row=0, column=7, padx=5)
+
+        # Make window resize properly
+        win.rowconfigure(1, weight=1)
+        win.columnconfigure(0, weight=1)
+
+        # Optional: run once on open
+        win.after(200, generate_report)
 
     def daily_report(self):
         """Generate and display a daily attendance report."""
